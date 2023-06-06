@@ -1,0 +1,32 @@
+{
+    "analog_input":{
+        "1":{
+            "ref_currents":[400, 1000, 1500, 2000],
+            "ref_voltages":[0, 3751, 6877, 10000],
+            "tolerance_current": [50, 50, 50, 50],  
+            "tolerance_voltage": [50, 50, 50, 50],
+            "outputValues": [0, 1536, 2816, 4095] 
+        },
+        "2":{
+            "ref_currents":[400, 1000, 1500, 2000],
+            "ref_voltages":[0, 3751, 6877, 10000],
+            "tolerance_current": [50, 50, 50, 50],  
+            "tolerance_voltage": [50, 50, 50, 50],
+            "outputValues": [0, 1500, 2816, 4095]  
+        },
+        "3":{
+            "ref_currents":[400, 1000, 1500, 2000],
+            "ref_voltages":[0, 3751, 6877, 10000],
+            "tolerance_current": [50, 50, 50, 50],  
+            "tolerance_voltage": [50, 50, 50, 50],
+            "outputValues": [0, 1536, 2816, 4095]  
+        },
+        "4":{
+            "ref_currents":[400, 1000, 1500, 2000],
+            "ref_voltages":[0, 3751, 6877, 10000],
+            "tolerance_current": [50, 50, 50, 50],  
+            "tolerance_voltage": [50, 50, 50, 50],
+            "outputValues": [0, 1536, 2816, 4095]  
+        }
+    }
+}
