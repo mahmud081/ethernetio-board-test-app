@@ -1,7 +1,7 @@
 {
   "name": "ethernetio-test-app",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "main": "./dist-electron/main.js",
   "scripts": {
     "dev": "vite",
@@ -18,7 +18,12 @@
     },
     "files": [
       "dist-electron",
-      "dist"
+      "dist",
+      {
+        "from": "public",
+        "to": "public",
+        "filter": ["**/*"]
+      }
     ]
   },
   "dependencies": {

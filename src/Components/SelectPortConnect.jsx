@@ -11,10 +11,12 @@ const SelectPortConnect = ({
   onSetSerial,
   nextStep,
   setIsShowModal,
+  isConnected,
+  setIsConnected,
 }) => {
   const [availablePorts, setAvailablePorts] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
+
   const fetchPorts = useCallback(async () => {
     try {
       const ports = await ipcRenderer.invoke("fetch-ports");
@@ -34,35 +36,38 @@ const SelectPortConnect = ({
     if (!selectedPort) {
       return;
     }
-    setLoading(true);
-    let uid = "";
-    const response = await ipcRenderer.invoke("connect-board", selectedPort);
-    if (response.msg == "Port Not Open") {
-      console.error(response.msg);
-      return;
-    }
-    const resultArr = response.uidArr.data;
-    if (!resultArr) {
-      uid = uuidv4();
+    try {
+      setLoading(true);
+      let uid = "";
+      const response = await ipcRenderer.invoke("connect-board", selectedPort);
+      console.log(response);
+
+      const resultArr = response.uidArr.data;
+      if (!resultArr) {
+        uid = uuidv4();
+        onSetUid(uid);
+        return;
+      }
+      console.log(resultArr);
+      let first = resultArr.slice(0, 2),
+        second = resultArr.slice(2, 4),
+        third = resultArr.slice(4, 6);
+      (first = (first[1] << 16) | first[0]),
+        (second = (second[1] << 16) | second[0]),
+        (third = (third[1] << 16) | third[0]);
+      uid = first + "-" + second + "-" + third;
+      const prevResult = await ipcRenderer.invoke("find-prev-board");
+      if (prevResult) {
+        onSetSerial(prevResult._doc.serialNo);
+      }
       onSetUid(uid);
-      return;
+      setIsConnected(true);
+      nextStep((step) => step + 1);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
     }
-    console.log(resultArr);
-    let first = resultArr.slice(0, 2),
-      second = resultArr.slice(2, 4),
-      third = resultArr.slice(4, 6);
-    (first = (first[1] << 16) | first[0]),
-      (second = (second[1] << 16) | second[0]),
-      (third = (third[1] << 16) | third[0]);
-    uid = first + "-" + second + "-" + third;
-    const prevResult = await ipcRenderer.invoke("find-prev-board");
-    if (prevResult) {
-      onSetSerial(prevResult._doc.serialNo);
-    }
-    onSetUid(uid);
-    setIsConnected(true);
-    nextStep((step) => step + 1);
-    setLoading(false);
   };
   const onDisConnect = async () => {
     setIsConnected(false);

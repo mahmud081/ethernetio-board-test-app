@@ -1,5 +1,6 @@
 import { ipcRenderer } from "electron";
 import { useCallback, useEffect, useState } from "react";
+import LoadingComp from "./LoadingComp";
 
 const DigiatlIo = ({ show, setTestResults, currentStep, setCurrentStep }) => {
   const [digIo, setDigIo] = useState([
@@ -40,6 +41,7 @@ const DigiatlIo = ({ show, setTestResults, currentStep, setCurrentStep }) => {
       setIsLoading(false);
     } catch (error) {
       console.log(error);
+      setIsLoading(false);
     } finally {
       setIsLoading(false);
     }
@@ -78,9 +80,15 @@ const DigiatlIo = ({ show, setTestResults, currentStep, setCurrentStep }) => {
   }, [results]);
 
   const onOutputChange = async (outId, wrVal) => {
-    console.log(outId, wrVal);
-    await ipcRenderer.invoke("write-dig-out", outId, wrVal);
-    await readValues();
+    try {
+      console.log(outId, wrVal);
+      await ipcRenderer.invoke("write-dig-out", outId, wrVal);
+      await readValues();
+    } catch (error) {
+      console.log(error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -89,9 +97,7 @@ const DigiatlIo = ({ show, setTestResults, currentStep, setCurrentStep }) => {
         <div className="w-full mt-4">
           {/* <HeaderComp title={"Digital I/O"} /> */}
           <div className="grid grid-cols-3 gap-x-2 relative">
-            {isLoading && (
-              <div className="absolute inset-0 bg-gray-400 opacity-40"></div>
-            )}
+            {isLoading && <LoadingComp />}
             <div className="col-span-1">
               <h3 className="text-sm font-medium text-gray-600">
                 Digital Output
@@ -100,7 +106,7 @@ const DigiatlIo = ({ show, setTestResults, currentStep, setCurrentStep }) => {
                 {digIo
                   .map((v) => v.outputVal)
                   .map((v, idx) => (
-                    <label
+                    <div
                       key={"dig-out-" + idx}
                       className="cursor-pointer inline-flex items-center space-x-4 mb-[6px] mt-2"
                     >
@@ -109,13 +115,13 @@ const DigiatlIo = ({ show, setTestResults, currentStep, setCurrentStep }) => {
                       </span>
                       <input
                         type="checkbox"
-                        className="toggle toggle-accent toggle-sm"
+                        className=" inline-block toggle toggle-accent toggle-sm"
                         checked={v === "" ? false : v}
                         onChange={({ target: { checked } }) =>
                           onOutputChange(idx + 1, checked)
                         }
                       />
-                    </label>
+                    </div>
                   ))}
               </div>
             </div>

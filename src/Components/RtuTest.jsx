@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ipcRenderer } from "electron";
+import LoadingComp from "./LoadingComp";
 
 const RtuTest = ({ show, setTestResults, currentStep, setCurrentStep }) => {
   const [isLoading, setIsLoading] = useState(false);
@@ -39,9 +40,7 @@ const RtuTest = ({ show, setTestResults, currentStep, setCurrentStep }) => {
     <>
       {show && (
         <div className="flex items-center space-x-10 relative w-full">
-          {isLoading && (
-            <div className="absolute inset-0 bg-gray-300 opacity-40"></div>
-          )}
+          {isLoading && <LoadingComp />}
           <div>
             <h3>&nbsp;</h3>
             <button className="btn normal-case" onClick={onTestClick}>

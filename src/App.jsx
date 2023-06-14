@@ -8,6 +8,8 @@ import EthernetPortTest from "./Components/EthernetPortTest";
 import { ipcRenderer } from "electron";
 import ResultsPage from "./Components/ResultsPage";
 import Modal from "./Components/Modal";
+import AlertComp from "./Components/AlertComp";
+import LoadingComp from "./Components/LoadingComp";
 
 function App() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -18,6 +20,9 @@ function App() {
   const [configs, setConfigs] = useState({});
   const [globLoading, setGlobLoading] = useState(false);
   const [isShowModal, setIsShowModal] = useState(false);
+  const [message, setMessage] = useState("");
+  const [showAlert, setShowAlert] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
 
   const onPortSelect = (path) => {
     setSelectedPort(path);
@@ -33,14 +38,38 @@ function App() {
     getConfigs();
   }, []);
 
+  useEffect(() => {
+    let messageEventHandler = async (event, args) => {
+      console.log("message", args);
+      if (args == "Timed out") {
+        setGlobLoading(true);
+
+        await ipcRenderer.invoke("reset-client");
+        console.log("client reset done");
+        setGlobLoading(false);
+      }
+      setShowAlert(true);
+      setMessage(args);
+    };
+    ipcRenderer.on("message-from-main", messageEventHandler);
+    return () => {
+      ipcRenderer.removeListener("message-from-main", messageEventHandler);
+    };
+  }, []);
+
   return (
     <div className="px-4 relative">
+      {showAlert && (
+        <AlertComp
+          msg={message}
+          setMessage={setMessage}
+          setShowAlert={setShowAlert}
+        />
+      )}
       {isShowModal && (
         <Modal show={isShowModal} setIsShowModal={setIsShowModal} />
       )}
-      {globLoading && (
-        <div className="absolute inset-0 bg-gray-300 opacity-40 z-50"></div>
-      )}
+      {globLoading && <LoadingComp />}
       {/* {JSON.stringify(currentStep)} */}
       <SelectPortConnect
         selectedPort={selectedPort}
@@ -51,6 +80,8 @@ function App() {
         onSetSerial={(val) => setSerialNo(val)}
         nextStep={setCurrentStep}
         setIsShowModal={setIsShowModal}
+        isConnected={isConnected}
+        setIsConnected={setIsConnected}
       />
       <div className=" flex items-start space-x-6 w-full">
         {currentStep >= 2 && (
@@ -64,38 +95,38 @@ function App() {
         )}
         <div className="w-full">
           <div className=" flex items-start space-x-2">
-            {currentStep >= 2 && (
+            {currentStep >= 3 && (
               <MemoryTest
                 currentStep={currentStep}
-                show={currentStep >= 2}
+                show={currentStep >= 3}
                 setTestResults={setTestResults}
                 setCurrentStep={setCurrentStep}
               />
             )}
-            {currentStep >= 2 && (
+            {currentStep >= 4 && (
               <RtuTest
                 currentStep={currentStep}
-                show={currentStep >= 2}
+                show={currentStep >= 4}
                 setTestResults={setTestResults}
                 setCurrentStep={setCurrentStep}
               />
             )}
           </div>
-          {currentStep >= 2 && (
+          {currentStep >= 5 && (
             <EthernetPortTest
               currentStep={currentStep}
-              show={currentStep >= 2}
+              show={currentStep >= 5}
               setTestResults={setTestResults}
               setCurrentStep={setCurrentStep}
             />
           )}
         </div>
       </div>
-      {currentStep >= 2 && (
+      {currentStep >= 6 && Object.keys(configs).length && (
         <AnalogIo
           configs={configs}
           currentStep={currentStep}
-          show={currentStep >= 2}
+          show={currentStep >= 6}
           setTestResults={setTestResults}
           setCurrentStep={setCurrentStep}
         />
@@ -108,6 +139,10 @@ function App() {
           serialNo={serialNo}
           setTestResults={setTestResults}
           setCurrentStep={setCurrentStep}
+          isConnected={isConnected}
+          setIsConnected={setIsConnected}
+          setBoardUid={setBoardUid}
+          setSerialNo={setSerialNo}
         />
       )}
     </div>

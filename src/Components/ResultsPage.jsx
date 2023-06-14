@@ -61,6 +61,10 @@ const ResultsPage = ({
   serialNo,
   setTestResults,
   setCurrentStep,
+  isConnected,
+  setIsConnected,
+  setBoardUid,
+  setSerialNo,
 }) => {
   const [resultArr, setResultArr] = useState([]);
 
@@ -70,10 +74,14 @@ const ResultsPage = ({
   useEffect(() => {
     let data = [];
     Object.entries(testResults).map(([key, testVal]) => {
-      console.log(testVal);
+      console.log("testval", testVal);
       let resultStr = "";
       testVal.forEach((test) => {
-        let row = { testName: "", result: "", failedReason: [] };
+        let row = {
+          testName: "",
+          result: "",
+          failedReason: { current: [], voltage: [] },
+        };
         if (test.hasOwnProperty("currentResults")) {
           if (test.currentResults.some((f) => f === false)) {
             resultStr = "Failed";
@@ -82,7 +90,7 @@ const ResultsPage = ({
           }
         }
         if (test.hasOwnProperty("voltageResults")) {
-          if (test.currentResults.some((f) => f === false)) {
+          if (test.voltageResults.some((f) => f === false)) {
             resultStr = "Failed";
           } else {
             resultStr = "Passed";
@@ -96,10 +104,10 @@ const ResultsPage = ({
           }
         }
         if (test.hasOwnProperty("failedReasonCurr")) {
-          row.failedReason = test.failedReasonCurr;
+          row.failedReason.current = test.failedReasonCurr;
         }
         if (test.hasOwnProperty("failedReasonVolt")) {
-          row.failedReason = test.failedReasonVolt;
+          row.failedReason.voltage = test.failedReasonVolt;
         }
         row.testName = key + "-" + test.id;
         row.result = resultStr;
@@ -107,26 +115,46 @@ const ResultsPage = ({
       });
     });
     data = data.map((d) => {
-      if (d.failedReason.length > 0) {
+      if (
+        d.failedReason.current.length > 0 ||
+        d.failedReason.voltage.length > 0
+      ) {
         return { ...d };
       } else {
         return { testName: d.testName, result: d.result };
       }
     });
+
     setResultArr(data);
   }, []);
 
   const onSave = async () => {
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    await ipcRenderer.invoke("save-to-excel", resultArr, boardUid, serialNo);
-    // await new Promise((res) => setTimeout(() => res(), 2500));
-    setLoading(false);
-    setIsSaved(true);
+      await ipcRenderer.invoke("save-to-excel", resultArr, boardUid, serialNo);
+      // await new Promise((res) => setTimeout(() => res(), 2500));
+      if (!resultArr.map((r) => r.result).some((r) => r == "Failed")) {
+        console.log("all passed");
+        await new Promise((res) => setTimeout(() => res(), 100));
+        await ipcRenderer.invoke("factory-reset");
+      }
+    } catch (error) {
+      console.log(error);
+    } finally {
+      setLoading(false);
+      setIsSaved(true);
+    }
   };
   const onFinish = async () => {
+    setLoading(true);
+    await ipcRenderer.invoke("disconnect");
+    setIsConnected(false);
+    setBoardUid("");
+    setSerialNo("");
     setTestResults({});
     setCurrentStep(1);
+    setLoading(false);
   };
   return (
     <>
@@ -147,6 +175,7 @@ const ResultsPage = ({
               {resultArr &&
                 resultArr.map((row) => (
                   <tr>
+                    <td></td>
                     <td>{row.testName}</td>
                     <td>{row.result}</td>
                     <td>{JSON.stringify(row.failedReason)}</td>

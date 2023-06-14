@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { ipcRenderer } from "electron";
+import LoadingComp from "./LoadingComp";
 
 function MemoryTest({ show, setTestResults, currentStep, setCurrentStep }) {
   const [enableTest, setEnableTest] = useState(false);
@@ -18,6 +19,7 @@ function MemoryTest({ show, setTestResults, currentStep, setCurrentStep }) {
     if (!response.success) {
       console.error("failed to start test");
       setResults((prevStates) => [{ ...prevStates[0], result: false }]);
+      setIsLoading(false);
       return;
     }
     setIsLoading(false);
@@ -64,9 +66,7 @@ function MemoryTest({ show, setTestResults, currentStep, setCurrentStep }) {
     <>
       {show && (
         <div className="mt-4 relative w-full">
-          {isLoading && (
-            <div className="absolute inset-0 bg-gray-300 opacity-40"></div>
-          )}
+          {isLoading && <LoadingComp />}
           <h1 className=" text-sm font-semibold text-gray-800 mb-2">
             Memory Test
           </h1>

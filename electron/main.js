@@ -40,7 +40,7 @@ function createWindow(width = 1024, height = 600) {
     mainWindow.loadFile(path.join(__dirname, "../dist/index.html"));
   }
 }
-const client = new ModbusRTU();
+let client;
 
 app.whenReady().then(() => {
   const primaryDisplay = screen.getPrimaryDisplay();
@@ -56,8 +56,8 @@ app.whenReady().then(() => {
 });
 
 app.on("window-all-closed", async () => {
-  console.log("closed func", client.isOpen);
-  if (client.isOpen) {
+  console.log("closed func");
+  if (client && client.isOpen) {
     await client.close();
   }
   if (process.platform !== "darwin") {
@@ -65,8 +65,8 @@ app.on("window-all-closed", async () => {
   }
 });
 app.on("before-quit", async (event) => {
-  console.log("closing func", client.isOpen);
-  if (client.isOpen) {
+  console.log("closing func");
+  if (client && client.isOpen) {
     await client.close();
   }
 
@@ -90,27 +90,54 @@ ipcMain.handle("fetch-ports", async (e) => {
   }
 });
 
+async function instantiateClient() {
+  if (client && client.isOpen) {
+    await client.close();
+  }
+  client = new ModbusRTU();
+  try {
+    await client.connectRTUBuffered(serialPath, {
+      baudRate: 230400,
+      parity: "even",
+      // dataBits: 8,
+      // stopBits: 1,
+    });
+
+    await client.setTimeout(2000);
+    await client.setID(1);
+    console.log(client.isOpen);
+  } catch (error) {
+    throw new Error(error.message);
+  }
+}
+
+async function resetClient() {
+  if (client && client.isOpen) {
+    await client.close();
+  } else {
+    await instantiateClient();
+  }
+}
+ipcMain.handle("reset-client", async (e) => {
+  await instantiateClient();
+});
 // connect & get uid handler
 
 ipcMain.handle("connect-board", async (e, path) => {
   serialPath = path;
   const respose = { success: true, uidArr: [], msg: "" };
-  await client.connectRTUBuffered(serialPath, {
-    baudRate: 230400,
-    parity: "even",
-    // dataBits: 8,
-    // stopBits: 1,
-  });
-  await client.setID(1);
+
   try {
+    await instantiateClient();
+
     const uidArr = await client.readInputRegisters(102, 6);
     respose.uidArr = uidArr;
+    return respose;
   } catch (error) {
     console.log(error);
-    (respose.success = false), (respose.msg = error.message);
+    mainWindow.webContents.send("message-from-main", error.message);
+    throw new Error(error.message);
   }
-
-  return respose;
 });
 
 // get config
@@ -125,11 +152,12 @@ ipcMain.handle("read-dig-io", async (e) => {
   try {
     // await client.setTimeout(6000);
     const outputs = await client.readCoils(0, 8);
-    await new Promise((res) => setTimeout(() => res(), 200));
+    await new Promise((res) => setTimeout(() => res(), 50));
     const inputs = await client.readDiscreteInputs(0, 8);
     // console.log(outputs, inputs);
     return { inputs: [...inputs.data], outputs: [...outputs.data] };
   } catch (error) {
+    mainWindow.webContents.send("message-from-main", error.message);
     throw new Error(error.message);
   }
 });
@@ -151,6 +179,7 @@ ipcMain.handle("write-dig-out", async (e, outputId, writeVal) => {
     // await new Promise((res) => setTimeout(() => res(), 200));
     await client.writeCoil(digitalOutputs[outputId], writeVal);
   } catch (error) {
+    mainWindow.webContents.send("message-from-main", error.message);
     throw new Error(error.message);
   }
 });
@@ -186,6 +215,7 @@ ipcMain.handle("enable-current", async (e, rowId) => {
     // enable input current mode
     await client.writeRegister(enableInputCurrModeAddr[rowId], 0);
   } catch (error) {
+    mainWindow.webContents.send("message-from-main", error.message);
     throw new Error(error.message);
   }
 });
@@ -196,6 +226,7 @@ ipcMain.handle("enable-voltage", async (e, rowId) => {
     // enable input current mode
     await client.writeRegister(enableInputCurrModeAddr[rowId], 1);
   } catch (error) {
+    mainWindow.webContents.send("message-from-main", error.message);
     throw new Error(error.message);
   }
 });
@@ -209,24 +240,42 @@ const analogInputAddr = {
 };
 
 ipcMain.handle("read-analog-input", async (e, ioMode) => {
-  const inp1 = await client.readInputRegisters(
-    ioMode === "current" ? analogInputAddr["1"] : analogInputAddr["1"] + 1,
-    1
-  );
-  const inp2 = await client.readInputRegisters(
-    ioMode === "current" ? analogInputAddr["2"] : analogInputAddr["2"] + 1,
-    1
-  );
-  const inp3 = await client.readInputRegisters(
-    ioMode === "current" ? analogInputAddr["3"] : analogInputAddr["3"] + 1,
-    1
-  );
-  const inp4 = await client.readInputRegisters(
-    ioMode === "current" ? analogInputAddr["4"] : analogInputAddr["4"] + 1,
-    1
-  );
-  console.log("inputs", inp1.data[0], inp2.data[0], inp3.data[0], inp4.data[0]);
-  return [inp1.data[0], inp2.data[0], inp3.data[0], inp4.data[0]];
+  try {
+    const inp1 = await client.readInputRegisters(
+      ioMode === "current" ? analogInputAddr["1"] : analogInputAddr["1"] + 1,
+      1
+    );
+    await new Promise((res) => setTimeout(() => res(), 100));
+
+    const inp2 = await client.readInputRegisters(
+      ioMode === "current" ? analogInputAddr["2"] : analogInputAddr["2"] + 1,
+      1
+    );
+    await new Promise((res) => setTimeout(() => res(), 100));
+
+    const inp3 = await client.readInputRegisters(
+      ioMode === "current" ? analogInputAddr["3"] : analogInputAddr["3"] + 1,
+      1
+    );
+    await new Promise((res) => setTimeout(() => res(), 100));
+
+    const inp4 = await client.readInputRegisters(
+      ioMode === "current" ? analogInputAddr["4"] : analogInputAddr["4"] + 1,
+      1
+    );
+    await new Promise((res) => setTimeout(() => res(), 100));
+    console.log(
+      "inputs",
+      inp1.data[0],
+      inp2.data[0],
+      inp3.data[0],
+      inp4.data[0]
+    );
+    return [inp1.data[0], inp2.data[0], inp3.data[0], inp4.data[0]];
+  } catch (error) {
+    mainWindow.webContents.send("message-from-main", error.message);
+    throw new Error(error.message);
+  }
 });
 
 const analogOutput = {
@@ -241,6 +290,7 @@ ipcMain.handle("write-analog-output", async (e, outputId, outputVal) => {
     // await new Promise((res) => setTimeout(() => res(), 200));
     await client.writeRegister(analogOutput[outputId], outputVal);
   } catch (error) {
+    mainWindow.webContents.send("message-from-main", error.message);
     throw new Error(error.message);
   }
 });
@@ -262,6 +312,7 @@ ipcMain.handle("read-mem-status", async (e) => {
     return resp.data[0];
   } catch (error) {
     console.log(error);
+    mainWindow.webContents.send("message-from-main", error.message);
     throw new Error(error.message);
   }
 });
@@ -280,15 +331,18 @@ ipcMain.handle("read-slave", async (e) => {
     console.log("reading slave");
 
     const resp = await client.readHoldingRegisters(260, 1);
-
+    await client.setID(1);
     return resp.data[0];
   } catch (error) {
     console.log(error);
+    await client.setID(1);
+    mainWindow.webContents.send("message-from-main", error.message);
     return null;
   } finally {
     // change back to slave id 1
     console.log("change back to slave 1");
     await client.setID(1);
+    await client.setTimeout(12000);
   }
 });
 
@@ -298,6 +352,7 @@ ipcMain.handle("read-ip-address", async (e) => {
     const resArr = await client.readHoldingRegisters(176, 4);
     return resArr.data;
   } catch (error) {
+    mainWindow.webContents.send("message-from-main", error.message);
     return [];
   }
 });
@@ -316,36 +371,30 @@ async function sendPacket(msg) {
   const response = await new Promise((resolve, reject) => {
     const tcpClient = new net.Socket();
 
-    tcpClient.setTimeout(6000, async function () {
+    tcpClient.setTimeout(4000, async function () {
       console.log("timeoout");
+      // await client.writeRegister(280, 0);
       tcpClient.destroy();
+
       console.log("timeout closing socket");
       resolve(false);
     });
     // 502, "11.200.0.100"
     tcpClient.connect(502, "11.200.0.100", async function () {
       console.log("Connected");
-      await new Promise((res) => setTimeout(() => res(), 600));
-
-      console.log("changing to master");
-      await client.writeRegister(280, 1);
-
-      await new Promise((res) => setTimeout(() => res(), 1000));
+      await new Promise((res) => setTimeout(() => res(), 500));
       tcpClient.write(msg);
     });
 
     tcpClient.on("data", async function (data) {
       console.log("Received: " + data);
-
-      console.log("changing to slave");
-      await client.writeRegister(280, 0);
-
       tcpClient.destroy(); // kill tcpClient after server's response
       resolve(data);
     });
 
     tcpClient.on("close", async function () {
       console.log("Connection closed");
+      // await client.writeRegister(280, 0);
       resolve(false);
     });
 
@@ -353,7 +402,7 @@ async function sendPacket(msg) {
       console.log("tcp error", err);
       // await client.writeRegister(280, 0);
       console.log("rejecting");
-      reject(err);
+      resolve(false);
     });
   });
   console.log("resolve stat", response);
@@ -368,8 +417,14 @@ ipcMain.handle("send-packet", async (e) => {
     hexVal = new Uint8Array(requestedPacket);
 
   try {
+    await new Promise((res) => setTimeout(() => res(), 400));
+    await client.setTimeout(12000);
+    await client.writeRegister(280, 1);
+    console.log("changed to master");
     const packetResp = await sendPacket(hexVal);
+    await new Promise((res) => setTimeout(() => res(), 400));
     await client.writeRegister(280, 0);
+    console.log("changed to slave");
     console.log("pac resp", packetResp);
     if (
       typeof packetResp === "object" &&
@@ -383,7 +438,10 @@ ipcMain.handle("send-packet", async (e) => {
   } catch (error) {
     console.log(error);
     await client.writeRegister(280, 0);
+    mainWindow.webContents.send("message-from-main", error.message);
     return { success: false, msg: "" };
+  } finally {
+    await client.writeRegister(280, 0);
   }
 });
 
@@ -513,4 +571,14 @@ ipcMain.handle("find-prev-board", async (e, boardUid) => {
       await db.disconnect();
     });
   return prevData;
+});
+
+ipcMain.handle("factory-reset", async (e) => {
+  try {
+    await client.setTimeout(2000);
+    await client.writeCoil(91, 1);
+  } catch (error) {
+    console.error(error);
+    throw new Error(error.message);
+  }
 });

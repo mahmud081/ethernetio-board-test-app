@@ -1,5 +1,6 @@
 import { ipcRenderer } from "electron";
 import { useCallback, useEffect, useState } from "react";
+import LoadingComp from "./LoadingComp";
 
 const EthernetPortTest = ({
   show,
@@ -18,6 +19,8 @@ const EthernetPortTest = ({
     { id: 2, label: "Read IP address", result: null },
     { id: 3, label: "Packet sending test", result: null },
   ]);
+
+  const [noOfTries, setNoOfTries] = useState(0);
 
   const readIp = async () => {
     try {
@@ -85,7 +88,7 @@ const EthernetPortTest = ({
   const onPacketSend = async () => {
     try {
       setIsLoading(true);
-
+      setNoOfTries((prev) => prev + 1);
       const response = await ipcRenderer.invoke("send-packet");
       console.log(response);
       if (response.success) {
@@ -108,6 +111,7 @@ const EthernetPortTest = ({
       //   console.log(Buffer.from(response.buffer).toString());
     } catch (error) {
       setPacketStatus(false);
+      setIsLoading(false);
       setResults((prevStates) => {
         let newStates = [...prevStates];
         let found = newStates.find((f) => f.id == 3);
@@ -134,9 +138,7 @@ const EthernetPortTest = ({
     <>
       {show && (
         <div className="relative border-t border-gray-200 mt-4 py-3">
-          {isLoading && (
-            <div className="absolute inset-0 bg-gray-300 opacity-40"></div>
-          )}
+          {isLoading && <LoadingComp />}
           <div className="space-x-6 mb-6">
             <button
               className={`btn ${pingLoading && "loading"}`}
@@ -167,7 +169,11 @@ const EthernetPortTest = ({
             />
           </div>
           <div className="space-x-4">
-            <button className={`btn mt-6 `} onClick={onPacketSend}>
+            <button
+              disabled={noOfTries >= 4}
+              className={`btn mt-6 `}
+              onClick={onPacketSend}
+            >
               send Packet
             </button>
             {packetStatus === true && (
@@ -177,7 +183,7 @@ const EthernetPortTest = ({
             )}
             {packetStatus === false && (
               <span className=" bg-rose-50 text-rose-500 text-sm font-semibold px-2 py-1 rounded-lg">
-                Packet sending failed
+                Packet sending failed {noOfTries < 4 && " try again"}
               </span>
             )}
           </div>

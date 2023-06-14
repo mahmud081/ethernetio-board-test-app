@@ -1,5 +1,6 @@
 import { ipcRenderer } from "electron";
 import { useEffect, useState } from "react";
+import LoadingComp from "./LoadingComp";
 
 const AnalogIo = ({
   configs,
@@ -23,6 +24,9 @@ const AnalogIo = ({
       outputValues: configs["analog_input"][1]["outputValues"] || [
         0, 1536, 2816, 4095,
       ],
+      outputValuesVolt: configs["analog_input"][1]["outputValuesVoltage"] || [
+        0, 1250, 2816, 4095,
+      ],
       tolerance: configs["analog_input"][1]["tolerance_current"] || [
         50, 50, 50, 50,
       ],
@@ -32,6 +36,7 @@ const AnalogIo = ({
       pressed: [false, false, false, false],
       mode: "current",
       enableVoltage: false,
+      showText: true,
     },
     {
       id: 2,
@@ -47,6 +52,7 @@ const AnalogIo = ({
       outputValues: configs["analog_input"][2]["outputValues"] || [
         0, 1536, 2816, 4095,
       ],
+      outputValuesVolt: configs["analog_input"][2]["outputValuesVoltage"],
       tolerance: configs["analog_input"][2]["tolerance_current"] || [
         50, 50, 50, 50,
       ],
@@ -56,6 +62,7 @@ const AnalogIo = ({
       pressed: [false, false, false, false],
       mode: "current",
       enableVoltage: false,
+      showText: true,
     },
     {
       id: 3,
@@ -71,6 +78,9 @@ const AnalogIo = ({
       outputValues: configs["analog_input"][3]["outputValues"] || [
         0, 1536, 2816, 4095,
       ],
+      outputValuesVolt: configs["analog_input"][3]["outputValuesVoltage"] || [
+        0, 1536, 2816, 4095,
+      ],
       tolerance: configs["analog_input"][3]["tolerance_current"] || [
         50, 50, 50, 50,
       ],
@@ -80,6 +90,7 @@ const AnalogIo = ({
       pressed: [false, false, false, false],
       mode: "current",
       enableVoltage: false,
+      showText: true,
     },
     {
       id: 4,
@@ -92,7 +103,10 @@ const AnalogIo = ({
       referenceVolt: configs["analog_input"][4]["ref_voltages"] || [
         0, 3751, 6877, 10000,
       ],
-      outputValues: configs["analog_input"][3]["outputValues"] || [
+      outputValues: configs["analog_input"][4]["outputValues"] || [
+        0, 1536, 2816, 4095,
+      ],
+      outputValuesVolt: configs["analog_input"][4]["outputValuesVoltage"] || [
         0, 1536, 2816, 4095,
       ],
       tolerance: configs["analog_input"][4]["tolerance_current"] || [
@@ -104,6 +118,7 @@ const AnalogIo = ({
       pressed: [false, false, false, false],
       mode: "current",
       enableVoltage: false,
+      showText: true,
     },
   ]);
 
@@ -151,6 +166,7 @@ const AnalogIo = ({
         return newStates;
       });
     } catch (error) {
+      setIsLoading(false);
       console.error(error);
     } finally {
       setIsLoading(false);
@@ -168,9 +184,12 @@ const AnalogIo = ({
       let newAnalogIoStates = [...analogIo];
       let found = newAnalogIoStates.find((f) => f.id == rowId);
       found.mode = "voltage";
+      found.inputValue = 0;
+      found.showText = false;
       setAnalogIo(newAnalogIoStates);
     } catch (error) {
       console.error(error);
+      setIsLoading(false);
     } finally {
       setIsLoading(false);
     }
@@ -179,16 +198,16 @@ const AnalogIo = ({
   // onoutput change
   //v.id, outVal, idx, v.mode
   const onOutputChange = async (outputId, outValue, outputIdx, ioMode) => {
-    console.log(outValue);
+    console.log("value to out", outValue);
     try {
       setIsLoading(true);
       await ipcRenderer.invoke("write-analog-output", outputId, outValue);
-      await new Promise((res) => setTimeout(() => res(), 350));
+      await new Promise((res) => setTimeout(() => res(), 450));
       const response = await ipcRenderer.invoke("read-analog-input", ioMode);
       const changedInput = response[outputId - 1];
       const refOutput = analogIo.find((f) => f.id === outputId);
-      console.log("changed", changedInput);
-      console.log("ref", refOutput);
+      // console.log("changed", changedInput);
+      // console.log("ref", refOutput);
       let newAnalogIoStates = [...analogIo];
       let found = newAnalogIoStates.find((f) => f.id == outputId);
       found.inputValue = changedInput;
@@ -197,9 +216,9 @@ const AnalogIo = ({
       let newResults = [...results];
       let pasFail = null;
       if (refOutput.mode == "current") {
-        console.log("input ", changedInput);
-        console.log("ref ", refOutput.referenceCurr[outputIdx]);
-        console.log("tol ", refOutput.tolerance[outputIdx]);
+        // console.log("input ", changedInput);
+        // console.log("ref ", refOutput.referenceCurr[outputIdx]);
+        // console.log("tol ", refOutput.tolerance[outputIdx]);
         if (
           changedInput >=
             refOutput.referenceCurr[outputIdx] -
@@ -217,17 +236,20 @@ const AnalogIo = ({
         if (!pasFail) {
           if (
             rFound.failedReasonCurr.findIndex(
-              (f) => f.label == refOutput.labels[outputIdx]
+              (f) => f.label == refOutput.labels[outputIdx] + " mA"
             ) === -1
           ) {
             rFound.failedReasonCurr.push({
-              label: refOutput.labels[outputIdx],
-              value: changedInput,
+              label: refOutput.labels[outputIdx] + " mA",
+              value: (changedInput / 100).toFixed(1),
             });
           }
         }
         setResults(newResults);
       } else {
+        console.log("input ", changedInput);
+        console.log("ref ", refOutput.referenceVolt[outputIdx]);
+        console.log("tol ", refOutput.tolerance[outputIdx]);
         if (
           changedInput >=
             refOutput.referenceVolt[outputIdx] -
@@ -240,21 +262,22 @@ const AnalogIo = ({
         } else {
           pasFail = false;
         }
-        console.log(pasFail);
+        // console.log(pasFail);
         let rFound = newResults.find((f) => f.id === outputId);
         rFound.voltageResults[outputIdx] = pasFail;
         if (!pasFail) {
           if (
             rFound.failedReasonVolt.findIndex(
-              (f) => f.label == refOutput.voltageLabels[outputIdx]
+              (f) => f.label == refOutput.voltageLabels[outputIdx] + "V"
             ) === -1
           ) {
             rFound.failedReasonVolt.push({
-              label: refOutput.voltageLabels[outputIdx],
-              value: changedInput,
+              label: refOutput.voltageLabels[outputIdx] + "V",
+              value: (changedInput / 1000).toFixed(1),
             });
           }
         }
+        console.log(newResults);
         setResults(newResults);
       }
 
@@ -266,21 +289,32 @@ const AnalogIo = ({
         ) {
           // found.mode = "voltage";
           // setAnalogIo(newAnalogIoStates);
-          found.enableVoltage = true;
-          setAnalogIo(newAnalogIoStates);
-          setEnabled((prevStates) => {
-            let newStates = [...prevStates];
-            newStates[outputId - 1] = false;
-            return newStates;
-          });
+          setTimeout(() => {
+            enableVoltage(outputId);
+          }, 1000);
         }
       }
+      setIsLoading(false);
     } catch (error) {
       console.error(error);
+      setIsLoading(false);
     } finally {
       setIsLoading(false);
     }
   };
+
+  function enableVoltage(outputId) {
+    let newAnalogIoStates = [...analogIo];
+    let found = newAnalogIoStates.find((f) => f.id == outputId);
+    found.enableVoltage = true;
+    found.showText = true;
+    setAnalogIo(newAnalogIoStates);
+    setEnabled((prevStates) => {
+      let newStates = [...prevStates];
+      newStates[outputId - 1] = false;
+      return newStates;
+    });
+  }
 
   useEffect(() => {
     console.log(
@@ -294,9 +328,9 @@ const AnalogIo = ({
         .map((r) => ({ curr: r.currentResults, volt: r.voltageResults }))
         .map((r) => [...r.curr, ...r.volt])
         .flat(1)
-        .some((r) => r == null) &&
-      currentStep == 6
+        .some((r) => r == null)
     ) {
+      console.log("a", results);
       setTestResults((prevStates) => {
         let newStates = { ...prevStates };
         return { ...newStates, "analog-io": [...results] };
@@ -309,15 +343,44 @@ const AnalogIo = ({
       {/* {JSON.stringify(results)} */}
       {show && (
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-4 gap-y-6 relative">
-          {isLoading && (
-            <div className="absolute inset-0 bg-gray-400 bg-opacity-50 z-30"></div>
-          )}
+          {isLoading && <LoadingComp />}
 
           {analogIo.map((v) => (
             <div
-              className="col-span-1 border border-gray-100 rounded-md p-2"
+              className="col-span-1 border border-gray-100 rounded-md p-2 relative"
               key={v.id}
             >
+              {/** notification for switching mode v.showText */}
+              {v.showText && (
+                <div className="absolute inset-0 bg-gray-100 bg-opacity-80 flex flex-col items-center justify-center space-x-3 z-30 text-xs text-gray-700 space-y-6">
+                  {v.mode == "current" && !v.enableVoltage && (
+                    <div>
+                      Switch to current mode in the board for both Analog input
+                      and output
+                    </div>
+                  )}
+                  {v.enableVoltage && (
+                    <div>
+                      Switch to voltage mode in the board for both Analog input
+                      and output
+                    </div>
+                  )}
+                  <button
+                    className="btn btn-xs btn-outline"
+                    onClick={() =>
+                      setAnalogIo((prevStates) => {
+                        let newStates = [...prevStates];
+                        let found = newStates.find((f) => f.id === v.id);
+                        found.showText = false;
+                        return newStates;
+                      })
+                    }
+                  >
+                    Ok
+                  </button>
+                </div>
+              )}
+              {/** end notification for switching mode */}
               {/** top row */}
               <div className="flex items-center space-x-6">
                 <button
@@ -342,7 +405,7 @@ const AnalogIo = ({
                     }
                   />
                   <span className="label-text">
-                    {v.mode == "current" ? "mA" : "mV"}
+                    {v.mode == "current" ? "mA" : "V"}
                   </span>
                 </div>
                 <button
@@ -360,17 +423,25 @@ const AnalogIo = ({
                 {!enabled[v.id - 1] && (
                   <div className=" absolute inset-0 bg-gray-100 opacity-40 z-20"></div>
                 )}
+
                 {v.outputValues.map((outVal, idx) => (
                   <button
                     key={idx}
                     className={`btn btn-xs normal-case ${
                       v.pressed[idx] ? "btn-neutral" : "btn-outline"
                     }`}
-                    onClick={() => onOutputChange(v.id, outVal, idx, v.mode)}
+                    onClick={() =>
+                      onOutputChange(
+                        v.id,
+                        v.mode == "current" ? outVal : v.outputValuesVolt[idx],
+                        idx,
+                        v.mode
+                      )
+                    }
                   >
                     {v.mode == "current"
                       ? v.labels[idx] + " mA"
-                      : v.voltageLabels[idx] + " mV"}
+                      : v.voltageLabels[idx] + " V"}
                   </button>
                 ))}
               </div>
