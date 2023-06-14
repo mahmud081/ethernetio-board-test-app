@@ -18,12 +18,7 @@
     },
     "files": [
       "dist-electron",
-      "dist",
-      {
-        "from": "public",
-        "to": "public",
-        "filter": ["**/*"]
-      }
+      "dist"
     ]
   },
   "dependencies": {

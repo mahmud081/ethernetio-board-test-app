@@ -9,8 +9,16 @@ const XLSX = require("xlsx");
 const os = require("os");
 const util = require("util");
 
+const url = process.env.VITE_DEV_SERVER_URL;
 // config
-const configPath = path.join(__dirname, "..", "public", "config.json");
+let configPath;
+if (url) {
+  configPath = path.join(__dirname, "..", "public", "config.json");
+} else {
+  configPath = path.join(app.getAppPath(), "../../../../", "config.json");
+  // configPath = path.join(app.getPath("exe"), "config.json");
+}
+// const configPath = path.join(app.getPath("public"), "config.json");
 const configContent = fs.readFileSync(configPath, "utf-8");
 const config = JSON.parse(configContent);
 
@@ -32,7 +40,6 @@ function createWindow(width = 1024, height = 600) {
     },
   });
 
-  const url = process.env.VITE_DEV_SERVER_URL;
   if (url) {
     mainWindow.loadURL(url);
     mainWindow.webContents.openDevTools();
@@ -47,6 +54,9 @@ app.whenReady().then(() => {
   const { width, height } = primaryDisplay.workAreaSize;
   createWindow(width, height);
   // createWindow(width, height);
+
+  console.log(app.getPath("userData"));
+  // mainWindow.webContents.send("message-from-main", appPath);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
